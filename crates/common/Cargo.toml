@@ -1,0 +1,16 @@
+[package]
+name = "happy-wakey-web-common"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+axum.workspace = true
+happy-wakey-interfaces = { git = "https://github.com/happy-wakey/happy-wakey-interfaces.git", rev = "cb8d8128c7a3d50f813a05e68451c2e3b292c59c" }
+next-loggers = { package = "oresoftware-next-loggers", git = "https://github.com/ores-otel/ores.otel.log.git", rev = "ca176fb6768a9750d262a536952268625ffd3a8a" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde.workspace = true
+serde_json.workspace = true
+syncer-rs = { git = "https://github.com/opto-sync/syncer.rs.git", rev = "f8dfef90722dc423d442388f61856958a177d36f" }
+
