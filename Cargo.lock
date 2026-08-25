@@ -1297,7 +1297,6 @@ dependencies = [
  "rustls-pemfile",
  "serde",
  "serde_json",
- "shared-auth-service-client",
  "syncer-rs",
  "tokio",
  "tokio-rustls",
@@ -3111,28 +3110,6 @@ dependencies = [
  "cfg-if",
  "cpufeatures 0.2.17",
  "digest",
-]
-
-[[package]]
-name = "shared-auth-client"
-version = "0.1.0"
-source = "git+https://github.com/shared-auth/shared-auth-clients.git?rev=cc57a85b276bee81ad94decc87df2f48d49cab9f#cc57a85b276bee81ad94decc87df2f48d49cab9f"
-dependencies = [
- "reqwest",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "url",
-]
-
-[[package]]
-name = "shared-auth-service-client"
-version = "0.1.0"
-source = "git+https://github.com/shared-auth/shared-auth-clients.git?rev=cc57a85b276bee81ad94decc87df2f48d49cab9f#cc57a85b276bee81ad94decc87df2f48d49cab9f"
-dependencies = [
- "serde_json",
- "shared-auth-client",
- "thiserror 2.0.20",
 ]
 
 [[package]]
