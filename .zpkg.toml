@@ -10,9 +10,10 @@ url = "https://github.com/happy-wakey/happy-wakey-web-server.rs"
 
 [dependencies]
 "happy-wakey/happy-wakey-interfaces" = "^0.1.0"
-"shared-auth/shared-auth-lib" = "^0.1.0"
-"opto-sync/syncer.rs" = "^0.3.1"
-"ores-otel/ores.otel.log" = "^0.1.0"
+"happy-wakey/happy-wakey-lib-core" = "^0.1.0"
+"shared-auth/shared-auth-clients" = "^0.1.0"
+"opto-sync/syncer-rs" = "^0.3.0"
+"oresoftware/next-loggers-rust" = "^0.1.0"
 
 [targets.mash]
 dir = "frontends/mash"
@@ -23,4 +24,3 @@ adapter = "rust"
 [targets.dioxus]
 dir = "frontends/dioxus"
 adapter = "rust"
-

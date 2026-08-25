@@ -14,10 +14,10 @@ sync conflict policy, or telemetry independently.
 
 ## Real organization integrations
 
-- **Shared Auth:** the common boundary performs protected
-  `POST /auth/introspect` using the current `IntrospectionRequest` envelope.
-  Missing service credentials, network failures, inactive tokens, and malformed
-  responses fail closed. User tokens are forwarded only to the Happy Wakey API.
+- **Shared Auth:** the common boundary uses the official typed service client
+  with an independent service credential and the exact audience. Missing
+  credentials, network failures, inactive tokens, and malformed responses fail
+  closed. No renderer builds or parses the introspection envelope itself.
 - **Opto Sync:** preference overlays call the pinned `syncer.rs` merge engine;
   renderers cannot invent their own JSON merge behavior.
 - **Ores OTEL:** every auth/API/render outcome is emitted through the pinned
@@ -26,11 +26,38 @@ sync conflict policy, or telemetry independently.
 - **Interfaces:** API responses deserialize into the exact pinned `Alarm`
   contract from `happy-wakey-interfaces`.
 
-The `shared-auth-lib` repository is private and laid out as a polyglot package,
-not a root Cargo workspace. This standalone public build therefore uses the
-same protected HTTP introspection contract directly. In
-`ORESoftware/k8s-cluster`, the service may additionally be compiled against
-the private path library without changing this trust boundary.
+The official Shared Auth client is pinned to the immutable commit
+`cc57a85b276bee81ad94decc87df2f48d49cab9f`; its finalized wire contract is
+`shared-auth-interfaces` commit
+`e60d862a59828a3690852252adcafaea1266268a`. Happy Wakey interfaces are pinned
+at `0f4c4bffa81c1e7d914281fc2056697a2f1a3020`, the read-only core at
+`45977ea1c25de5e90f3638de55c89a1b47c5090f`, and ores-otel logging at
+`ca176fb6768a9750d262a536952268625ffd3a8a`.
+
+## Four interaction modes
+
+Set `HAPPY_WAKEY_INTERACTION_MODE` to exactly one value. There is no automatic
+fallback between modes, so an outage cannot silently weaken the selected trust
+or durability boundary.
+
+- `direct_db_read` authenticates first, then calls only the subject-scoped
+  `happy-wakey-lib-core::ReadContext::alarms_for_subject` capability. The web
+  server receives no write or raw-database API.
+- `stateless_https` sends a bounded request to the API with redirects disabled.
+  Non-HTTPS API bases and URL-embedded credentials are rejected at startup.
+- `stateful_tls` maintains a TLS connection with a configured CA and server
+  name. Requests and responses are bounded length-delimited frames. Every frame
+  carries the current user bearer, so the API re-introspects every operation;
+  the connection never caches identity.
+- `async_jetstream` first registers an idempotent operation over authenticated
+  HTTPS. It then publishes a credential-free signal with a deterministic NATS
+  message ID, waits for the JetStream publish acknowledgement, and polls the
+  durable response stream by the unique response subject. It validates
+  pre-provisioned file-backed stream topology and never substitutes Core NATS.
+
+Bearers appear only in the protected Shared Auth call, stateless HTTPS header,
+or transient TLS request frame. They never enter the database outbox,
+JetStream payloads, response stream, dead-letter paths, or ores-otel fields.
 
 ## Configuration
 
@@ -39,6 +66,24 @@ HAPPY_WAKEY_API_BASE=https://api.happy-wakey.dev
 HAPPY_WAKEY_SHARED_AUTH_BASE=https://auth.oresoftware.dev
 HAPPY_WAKEY_SHARED_AUTH_AUDIENCE=happy-wakey
 HAPPY_WAKEY_SHARED_AUTH_INTROSPECT_SECRET=<runtime secret>
+HAPPY_WAKEY_INTERACTION_MODE=stateless_https
+
+# direct_db_read
+DATABASE_URL=postgres://read-only-runtime-credential@database/happy_wakey
+HAPPY_WAKEY_DATABASE_FLAVOR=postgres
+HAPPY_WAKEY_DATABASE_MAX_CONNECTIONS=4
+
+# stateful_tls
+HAPPY_WAKEY_API_TCP_ADDRESS=api.internal:8443
+HAPPY_WAKEY_API_TCP_SERVER_NAME=api.internal
+HAPPY_WAKEY_API_TCP_CA_FILE=/var/run/secrets/happy-wakey/ca.pem
+
+# async_jetstream
+HAPPY_WAKEY_NATS_URL=tls://nats.internal:4222
+HAPPY_WAKEY_NATS_CREDENTIALS_FILE=/var/run/secrets/happy-wakey/web.creds
+HAPPY_WAKEY_NATS_REQUEST_STREAM=HAPPY_WAKEY_OPERATIONS
+HAPPY_WAKEY_NATS_RESPONSE_STREAM=HAPPY_WAKEY_RESPONSES
+
 HAPPY_WAKEY_MASH_PORT=8131
 HAPPY_WAKEY_LEPTOS_PORT=8132
 HAPPY_WAKEY_DIOXUS_PORT=8133
@@ -48,8 +93,10 @@ The introspection secret belongs in External Secrets in Kubernetes, never in
 Git, images, Worker variables, or browser code.
 
 ```sh
-RUSTUP_TOOLCHAIN=stable cargo fmt --all -- --check
-RUSTUP_TOOLCHAIN=stable cargo clippy --workspace --all-targets -- -D warnings
-RUSTUP_TOOLCHAIN=stable cargo test --workspace
+zed validate
+zed install --adapter rust
+rustup run 1.88.0 cargo fmt --all -- --check
+rustup run 1.88.0 cargo clippy --workspace --all-targets --locked -- -D warnings
+rustup run 1.88.0 cargo test --workspace --locked
+rustup run 1.88.0 cargo build --workspace --release --locked
 ```
-
