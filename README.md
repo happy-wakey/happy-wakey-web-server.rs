@@ -29,8 +29,8 @@ sync conflict policy, or telemetry independently.
 
 The finalized wire contract is `shared-auth-interfaces` commit
 `e60d862a59828a3690852252adcafaea1266268a`. Happy Wakey interfaces are pinned
-at `0f4c4bffa81c1e7d914281fc2056697a2f1a3020`, the read-only core at
-`45977ea1c25de5e90f3638de55c89a1b47c5090f`, and ores-otel logging at
+at `d6278ec8f6b2263678728b147a32dff92d52d8c8`, the read-only core at
+`9638429097bc68b2aac280d4e3edaa92db96f85a`, and ores-otel logging at
 `ca176fb6768a9750d262a536952268625ffd3a8a`.
 
 ## Four interaction modes
