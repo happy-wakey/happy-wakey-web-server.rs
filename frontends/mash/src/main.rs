@@ -7,7 +7,7 @@ use tower_http::trace::TraceLayer;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let runtime = Arc::new(Runtime::new(Config::from_env(), "mash")?);
+    let runtime = Arc::new(Runtime::new(Config::from_env()?, "mash").await?);
     let app = Router::new()
         .route("/", get(home))
         .route("/healthz", get(|| async { "ok" }))
