@@ -14,10 +14,11 @@ sync conflict policy, or telemetry independently.
 
 ## Real organization integrations
 
-- **Shared Auth:** the common boundary uses the official typed service client
-  with an independent service credential and the exact audience. Missing
-  credentials, network failures, inactive tokens, and malformed responses fail
-  closed. No renderer builds or parses the introspection envelope itself.
+- **Shared Auth:** the common boundary calls the canonical versioned HTTPS
+  introspection contract with an independent service credential and the exact
+  audience. Redirects are disabled and responses are streamed into a 64 KiB
+  bound. Missing credentials, network failures, inactive tokens, and malformed
+  responses fail closed. No renderer owns a separate authentication path.
 - **Opto Sync:** preference overlays call the pinned `syncer.rs` merge engine;
   renderers cannot invent their own JSON merge behavior.
 - **Ores OTEL:** every auth/API/render outcome is emitted through the pinned
@@ -26,12 +27,10 @@ sync conflict policy, or telemetry independently.
 - **Interfaces:** API responses deserialize into the exact pinned `Alarm`
   contract from `happy-wakey-interfaces`.
 
-The official Shared Auth client is pinned to the immutable commit
-`cc57a85b276bee81ad94decc87df2f48d49cab9f`; its finalized wire contract is
-`shared-auth-interfaces` commit
+The finalized wire contract is `shared-auth-interfaces` commit
 `e60d862a59828a3690852252adcafaea1266268a`. Happy Wakey interfaces are pinned
-at `0f4c4bffa81c1e7d914281fc2056697a2f1a3020`, the read-only core at
-`45977ea1c25de5e90f3638de55c89a1b47c5090f`, and ores-otel logging at
+at `d6278ec8f6b2263678728b147a32dff92d52d8c8`, the read-only core at
+`9638429097bc68b2aac280d4e3edaa92db96f85a`, and ores-otel logging at
 `ca176fb6768a9750d262a536952268625ffd3a8a`.
 
 ## Four interaction modes
