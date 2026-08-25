@@ -22,7 +22,8 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
+use futures_util::StreamExt;
 pub use happy_wakey_interfaces::Alarm;
 use happy_wakey_interfaces::{
     ApiError, AsyncOperationAccepted, AsyncOperationRequest, AsyncOperationSignal,
@@ -607,16 +608,27 @@ async fn bounded_body(response: reqwest::Response) -> Result<Bytes, WebError> {
             "response exceeded its byte limit".into(),
         ));
     }
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|_| WebError::ApiUnavailable)?;
-    if bytes.len() > MAX_RESPONSE_BYTES {
+    let mut bytes = BytesMut::new();
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|_| WebError::ApiUnavailable)?;
+        extend_bounded(&mut bytes, &chunk)?;
+    }
+    Ok(bytes.freeze())
+}
+
+fn extend_bounded(buffer: &mut BytesMut, chunk: &[u8]) -> Result<(), WebError> {
+    let next_len = buffer
+        .len()
+        .checked_add(chunk.len())
+        .ok_or_else(|| WebError::Contract("response exceeded its byte limit".into()))?;
+    if next_len > MAX_RESPONSE_BYTES {
         return Err(WebError::Contract(
             "response exceeded its byte limit".into(),
         ));
     }
-    Ok(bytes)
+    buffer.extend_from_slice(chunk);
+    Ok(())
 }
 
 fn service_request(operation_id: Uuid, token: &str) -> ServiceOperationRequest {
@@ -913,5 +925,24 @@ mod tests {
         assert!(validate_api_base("https://user:pass@api.example.test").is_err());
         assert!(validate_api_base("https://api.example.test").is_ok());
         assert!(!safe_topology_name("bad.stream"));
+    }
+
+    #[test]
+    fn chunked_http_responses_stop_before_exceeding_the_limit() {
+        let mut body = BytesMut::from(&b"ok"[..]);
+        let oversized_chunk = vec![b'x'; MAX_RESPONSE_BYTES - 1];
+        assert!(matches!(
+            extend_bounded(&mut body, &oversized_chunk),
+            Err(WebError::Contract(_))
+        ));
+        assert_eq!(&body[..], b"ok");
+    }
+
+    #[test]
+    fn chunked_http_responses_allow_the_exact_limit() {
+        let mut body = BytesMut::new();
+        let exact_chunk = vec![b'x'; MAX_RESPONSE_BYTES];
+        extend_bounded(&mut body, &exact_chunk).unwrap();
+        assert_eq!(body.len(), MAX_RESPONSE_BYTES);
     }
 }
