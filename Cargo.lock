@@ -1239,7 +1239,7 @@ dependencies = [
 [[package]]
 name = "happy-wakey-interfaces"
 version = "0.1.0"
-source = "git+https://github.com/happy-wakey/happy-wakey-interfaces.git?rev=0f4c4bffa81c1e7d914281fc2056697a2f1a3020#0f4c4bffa81c1e7d914281fc2056697a2f1a3020"
+source = "git+https://github.com/happy-wakey/happy-wakey-interfaces.git?rev=d6278ec8f6b2263678728b147a32dff92d52d8c8#d6278ec8f6b2263678728b147a32dff92d52d8c8"
 dependencies = [
  "schemars",
  "serde",
@@ -1261,7 +1261,7 @@ dependencies = [
 [[package]]
 name = "happy-wakey-lib-core"
 version = "0.1.0"
-source = "git+https://github.com/happy-wakey/happy-wakey-lib-core.git?rev=45977ea1c25de5e90f3638de55c89a1b47c5090f#45977ea1c25de5e90f3638de55c89a1b47c5090f"
+source = "git+https://github.com/happy-wakey/happy-wakey-lib-core.git?rev=9638429097bc68b2aac280d4e3edaa92db96f85a#9638429097bc68b2aac280d4e3edaa92db96f85a"
 dependencies = [
  "chrono",
  "happy-wakey-interfaces",
@@ -1297,7 +1297,6 @@ dependencies = [
  "rustls-pemfile",
  "serde",
  "serde_json",
- "shared-auth-service-client",
  "syncer-rs",
  "tokio",
  "tokio-rustls",
@@ -3111,28 +3110,6 @@ dependencies = [
  "cfg-if",
  "cpufeatures 0.2.17",
  "digest",
-]
-
-[[package]]
-name = "shared-auth-client"
-version = "0.1.0"
-source = "git+https://github.com/shared-auth/shared-auth-clients.git?rev=cc57a85b276bee81ad94decc87df2f48d49cab9f#cc57a85b276bee81ad94decc87df2f48d49cab9f"
-dependencies = [
- "reqwest",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "url",
-]
-
-[[package]]
-name = "shared-auth-service-client"
-version = "0.1.0"
-source = "git+https://github.com/shared-auth/shared-auth-clients.git?rev=cc57a85b276bee81ad94decc87df2f48d49cab9f#cc57a85b276bee81ad94decc87df2f48d49cab9f"
-dependencies = [
- "serde_json",
- "shared-auth-client",
- "thiserror 2.0.20",
 ]
 
 [[package]]

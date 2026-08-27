@@ -32,9 +32,8 @@ use happy_wakey_interfaces::{
 use happy_wakey_lib_core::{DatabaseFlavor, ReadContext};
 use next_loggers::{json, Logger, Map, Options};
 use reqwest::redirect::Policy;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use shared_auth_service_client::{ClientError, SharedAuthClient};
 use syncer_rs::{merge_json, MergeOptions};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -57,6 +56,7 @@ const ASYNC_SIGNAL_SCHEMA: &str = "happy-wakey.async-operation.signal.v1";
 const ASYNC_REQUEST_SUBJECT: &str = "happy-wakey.operations";
 const ASYNC_RESPONSE_PREFIX: &str = "happy-wakey.responses";
 const MAX_RESPONSE_BYTES: usize = 900 * 1024;
+const MAX_INTROSPECTION_RESPONSE_BYTES: usize = 64 * 1024;
 const MAX_REQUEST_BYTES: usize = 32 * 1024;
 const IO_TIMEOUT: Duration = Duration::from_secs(10);
 const ASYNC_TIMEOUT: Duration = Duration::from_secs(15);
@@ -145,7 +145,7 @@ impl Config {
 pub struct Runtime {
     config: Config,
     mode: InteractionMode,
-    auth: SharedAuthClient,
+    shared_auth_secret: String,
     http: reqwest::Client,
     telemetry: Arc<Logger>,
     direct: OnceCell<ReadContext>,
@@ -163,6 +163,31 @@ pub struct Identity {
     pub subject: String,
     pub email: Option<String>,
     pub roles: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct IntrospectionEnvelope<'a> {
+    contract: &'static str,
+    payload: IntrospectionRequest<'a>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct IntrospectionRequest<'a> {
+    token: &'a str,
+    audience: &'a str,
+    required_scopes: [String; 0],
+}
+
+#[derive(Deserialize)]
+struct IntrospectionResponse {
+    active: bool,
+    #[serde(default)]
+    sub: Option<String>,
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default)]
+    roles: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -229,10 +254,6 @@ impl Runtime {
             .introspect_secret
             .clone()
             .context("HAPPY_WAKEY_SHARED_AUTH_INTROSPECT_SECRET is required")?;
-        let auth = SharedAuthClient::try_new(config.shared_auth_base.clone())
-            .context("build official Shared Auth client")?
-            .with_service_credential(service_secret)
-            .with_max_response_bytes(64 * 1024);
         let http = reqwest::Client::builder()
             .redirect(Policy::none())
             .connect_timeout(Duration::from_secs(5))
@@ -242,7 +263,7 @@ impl Runtime {
         Ok(Self {
             config,
             mode,
-            auth,
+            shared_auth_secret: service_secret,
             http,
             telemetry: Arc::new(Logger::new(Options {
                 app_name: format!("happy-wakey-{lane}"),
@@ -276,15 +297,43 @@ impl Runtime {
     }
 
     async fn introspect(&self, token: &str) -> Result<Identity, WebError> {
-        let result = self
-            .auth
-            .introspect_with_requirements(token, &self.config.shared_auth_audience, &[])
+        let response = self
+            .http
+            .post(format!(
+                "{}/auth/introspect",
+                self.config.shared_auth_base.trim_end_matches('/')
+            ))
+            .bearer_auth(&self.shared_auth_secret)
+            .json(&IntrospectionEnvelope {
+                contract: "IntrospectionRequest",
+                payload: IntrospectionRequest {
+                    token,
+                    audience: &self.config.shared_auth_audience,
+                    required_scopes: [],
+                },
+            })
+            .send()
             .await
-            .map_err(|error| {
-                let failure = map_auth_error(error);
-                self.emit("shared_auth.introspect", failure_status(&failure), true);
-                failure
+            .map_err(|_| {
+                self.emit("shared_auth.introspect", 503, true);
+                WebError::AuthUnavailable
             })?;
+        if !response.status().is_success() {
+            let failure = if response.status() == StatusCode::UNAUTHORIZED {
+                WebError::Unauthorized
+            } else {
+                WebError::AuthUnavailable
+            };
+            self.emit("shared_auth.introspect", failure_status(&failure), true);
+            return Err(failure);
+        }
+        let body = bounded_auth_body(response).await.inspect_err(|failure| {
+            self.emit("shared_auth.introspect", failure_status(failure), true);
+        })?;
+        let result: IntrospectionResponse = serde_json::from_slice(&body).map_err(|_| {
+            self.emit("shared_auth.introspect", 503, true);
+            WebError::AuthUnavailable
+        })?;
         if !result.active {
             self.emit("shared_auth.introspect", 401, true);
             return Err(WebError::Unauthorized);
@@ -615,6 +664,29 @@ async fn bounded_body(response: reqwest::Response) -> Result<Bytes, WebError> {
     Ok(bytes.freeze())
 }
 
+async fn bounded_auth_body(response: reqwest::Response) -> Result<Bytes, WebError> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_INTROSPECTION_RESPONSE_BYTES as u64)
+    {
+        return Err(WebError::AuthUnavailable);
+    }
+    let mut bytes = BytesMut::new();
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|_| WebError::AuthUnavailable)?;
+        let next_len = bytes
+            .len()
+            .checked_add(chunk.len())
+            .ok_or(WebError::AuthUnavailable)?;
+        if next_len > MAX_INTROSPECTION_RESPONSE_BYTES {
+            return Err(WebError::AuthUnavailable);
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes.freeze())
+}
+
 fn extend_bounded(buffer: &mut BytesMut, chunk: &[u8]) -> Result<(), WebError> {
     let next_len = buffer
         .len()
@@ -699,16 +771,19 @@ fn validate_response_stream(info: &jetstream::stream::Info) -> Result<(), WebErr
 }
 
 fn validate_config(config: &Config, mode: InteractionMode) -> Result<()> {
-    anyhow::ensure!(
-        is_safe_https_service_url(&config.shared_auth_base),
-        "Shared Auth must use HTTPS to a DNS name, not a public IP"
-    );
+    validate_shared_auth_base(&config.shared_auth_base)?;
     anyhow::ensure!(
         config
             .introspect_secret
             .as_ref()
-            .is_some_and(|secret| !secret.is_empty()),
+            .is_some_and(|secret| !secret.is_empty() && secret.len() <= 16 * 1024),
         "Shared Auth service credential is required"
+    );
+    anyhow::ensure!(
+        !config.shared_auth_audience.is_empty()
+            && config.shared_auth_audience.len() <= 256
+            && !config.shared_auth_audience.chars().any(char::is_whitespace),
+        "Shared Auth audience is invalid"
     );
     anyhow::ensure!(
         (1..=16).contains(&config.database_max_connections),
@@ -759,6 +834,23 @@ fn validate_config(config: &Config, mode: InteractionMode) -> Result<()> {
     Ok(())
 }
 
+fn validate_shared_auth_base(base: &str) -> Result<()> {
+    let url = reqwest::Url::parse(base).context("Shared Auth base must be an absolute URL")?;
+    anyhow::ensure!(
+        is_safe_https_service_url(base),
+        "Shared Auth must use HTTPS to a DNS name, not a public IP"
+    );
+    anyhow::ensure!(
+        url.host_str().is_some() && url.username().is_empty() && url.password().is_none(),
+        "Shared Auth base must not contain credentials"
+    );
+    anyhow::ensure!(
+        matches!(url.path(), "" | "/") && url.query().is_none() && url.fragment().is_none(),
+        "Shared Auth base must not contain a path, query, or fragment"
+    );
+    Ok(())
+}
+
 fn validate_api_base(base: &str) -> Result<()> {
     let url = reqwest::Url::parse(base).context("API base must be an absolute URL")?;
     anyhow::ensure!(
@@ -802,21 +894,6 @@ fn safe_topology_name(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
-}
-
-fn map_auth_error(error: ClientError) -> WebError {
-    match error {
-        ClientError::Unauthorized | ClientError::InvalidInput(_) => WebError::Unauthorized,
-        ClientError::MissingServiceCredential
-        | ClientError::InvalidBaseUrl
-        | ClientError::RequestTooLarge { .. }
-        | ClientError::ResponseTooLarge { .. }
-        | ClientError::Encode { .. }
-        | ClientError::Decode { .. }
-        | ClientError::Transport(_)
-        | ClientError::Status(_)
-        | ClientError::InsecureTransport(_) => WebError::AuthUnavailable,
-    }
 }
 
 fn failure_status(error: &WebError) -> u16 {
@@ -946,6 +1023,12 @@ mod tests {
 
     #[test]
     fn cleartext_and_url_credentials_are_rejected() {
+        assert!(validate_shared_auth_base("http://auth.example.test").is_err());
+        assert!(validate_shared_auth_base("https://user:pass@auth.example.test").is_err());
+        assert!(validate_shared_auth_base("https://auth.example.test/path").is_err());
+        assert!(validate_shared_auth_base("https://auth.example.test").is_ok());
+        assert!(validate_shared_auth_base("https://98.90.186.114").is_err());
+        assert!(validate_shared_auth_base("https://[2001:db8::1]/").is_err());
         assert!(validate_api_base("http://api.example.test").is_err());
         assert!(validate_api_base("https://user:pass@api.example.test").is_err());
         assert!(validate_api_base("https://api.example.test").is_ok());

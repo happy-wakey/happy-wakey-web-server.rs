@@ -19,7 +19,6 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@2eae45db285e407f22119950686d47e1101e071b # 1.88.0
         with:
-          toolchain: "1.88.0"
           components: rustfmt, clippy
       - name: Verify Zed package contract
         shell: bash
@@ -32,18 +31,9 @@ jobs:
           tar -xzf /tmp/zed.tar.gz -C /tmp
           /tmp/zed validate
       - run: cargo fmt --all -- --check
-      - name: Run native gates when the private Shared Auth source is available
-        shell: bash
-        run: |
-          set -euo pipefail
-          export GIT_TERMINAL_PROMPT=0
-          if git ls-remote https://github.com/shared-auth/shared-auth-clients.git HEAD >/dev/null 2>&1; then
-            cargo clippy --workspace --all-targets --locked -- -D warnings
-            cargo test --workspace --locked
-            cargo build --workspace --release --locked
-          else
-            echo '::warning::Native gates require approved cross-organization read access to shared-auth/shared-auth-clients.'
-          fi
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      - run: cargo build --workspace --release --locked
 
   repository-safety:
     runs-on: ubuntu-latest
