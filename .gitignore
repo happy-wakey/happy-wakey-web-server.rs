@@ -3,3 +3,14 @@
 *.log
 .DS_Store
 
+# BEGIN ores-sops dotenv policy
+.env
+.env.*
+!.env.example
+*.env
+**/*.env
+env/dec
+env/dec/
+/env/dec/
+# END ores-sops dotenv policy
+

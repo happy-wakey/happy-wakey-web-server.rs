@@ -112,14 +112,12 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn from_env() -> Self {
-        Self {
+    pub fn from_env() -> Result<Self> {
+        Ok(Self {
             interaction_mode: env::var("HAPPY_WAKEY_INTERACTION_MODE")
                 .unwrap_or_else(|_| "stateless_https".into()),
-            api_base: env::var("HAPPY_WAKEY_API_BASE")
-                .unwrap_or_else(|_| "https://api.happy-wakey.dev".into()),
-            shared_auth_base: env::var("HAPPY_WAKEY_SHARED_AUTH_BASE")
-                .unwrap_or_else(|_| "https://auth.oresoftware.dev".into()),
+            api_base: required_env("HAPPY_WAKEY_API_BASE")?,
+            shared_auth_base: required_env("HAPPY_WAKEY_SHARED_AUTH_BASE")?,
             shared_auth_audience: env::var("HAPPY_WAKEY_SHARED_AUTH_AUDIENCE")
                 .unwrap_or_else(|_| "happy-wakey".into()),
             introspect_secret: optional_env("HAPPY_WAKEY_SHARED_AUTH_INTROSPECT_SECRET"),
@@ -140,7 +138,7 @@ impl Config {
                 .unwrap_or_else(|_| "HAPPY_WAKEY_OPERATIONS".into()),
             nats_response_stream: env::var("HAPPY_WAKEY_NATS_RESPONSE_STREAM")
                 .unwrap_or_else(|_| "HAPPY_WAKEY_RESPONSES".into()),
-        }
+        })
     }
 }
 
@@ -702,8 +700,8 @@ fn validate_response_stream(info: &jetstream::stream::Info) -> Result<(), WebErr
 
 fn validate_config(config: &Config, mode: InteractionMode) -> Result<()> {
     anyhow::ensure!(
-        config.shared_auth_base.starts_with("https://"),
-        "Shared Auth must use HTTPS"
+        is_safe_https_service_url(&config.shared_auth_base),
+        "Shared Auth must use HTTPS to a DNS name, not a public IP"
     );
     anyhow::ensure!(
         config
@@ -763,7 +761,10 @@ fn validate_config(config: &Config, mode: InteractionMode) -> Result<()> {
 
 fn validate_api_base(base: &str) -> Result<()> {
     let url = reqwest::Url::parse(base).context("API base must be an absolute URL")?;
-    anyhow::ensure!(url.scheme() == "https", "API base must use HTTPS");
+    anyhow::ensure!(
+        is_safe_https_service_url(base),
+        "API base must use HTTPS to a DNS name, not a public IP"
+    );
     anyhow::ensure!(
         url.host_str().is_some() && url.username().is_empty() && url.password().is_none(),
         "API base must not contain credentials"
@@ -773,6 +774,26 @@ fn validate_api_base(base: &str) -> Result<()> {
         "API base must not contain a path, query, or fragment"
     );
     Ok(())
+}
+
+fn is_safe_https_service_url(raw: &str) -> bool {
+    let Ok(url) = reqwest::Url::parse(raw) else {
+        return false;
+    };
+    if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() {
+        return false;
+    }
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let host = host
+        .strip_prefix('[')
+        .and_then(|inner| inner.strip_suffix(']'))
+        .unwrap_or(host);
+    if matches!(host, "127.0.0.1" | "localhost" | "::1") {
+        return true;
+    }
+    host.parse::<std::net::IpAddr>().is_err() && !host.contains(':')
 }
 
 fn safe_topology_name(value: &str) -> bool {
@@ -804,6 +825,10 @@ fn failure_status(error: &WebError) -> u16 {
         WebError::AuthUnavailable | WebError::ApiUnavailable => 503,
         WebError::Contract(_) => 422,
     }
+}
+
+fn required_env(name: &str) -> Result<String> {
+    env::var(name).with_context(|| format!("{name} is required"))
 }
 
 fn optional_env(name: &str) -> Option<String> {
@@ -924,6 +949,8 @@ mod tests {
         assert!(validate_api_base("http://api.example.test").is_err());
         assert!(validate_api_base("https://user:pass@api.example.test").is_err());
         assert!(validate_api_base("https://api.example.test").is_ok());
+        assert!(validate_api_base("https://98.90.186.114").is_err());
+        assert!(validate_api_base("https://[2001:db8::1]/").is_err());
         assert!(!safe_topology_name("bad.stream"));
     }
 
