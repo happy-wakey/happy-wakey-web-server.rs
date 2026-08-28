@@ -53,7 +53,7 @@ const SERVICE_RESPONSE_SCHEMA: &str = "happy-wakey.service-operation.response.v1
 const ASYNC_REQUEST_SCHEMA: &str = "happy-wakey.async-operation.request.v1";
 const ASYNC_ACCEPTED_SCHEMA: &str = "happy-wakey.async-operation.accepted.v1";
 const ASYNC_SIGNAL_SCHEMA: &str = "happy-wakey.async-operation.signal.v1";
-const ASYNC_REQUEST_SUBJECT: &str = "happy-wakey.operations";
+const ASYNC_REQUEST_SUBJECT: &str = "dd.remote.web_api.happy-wakey.request";
 const ASYNC_RESPONSE_PREFIX: &str = "happy-wakey.responses";
 const MAX_RESPONSE_BYTES: usize = 900 * 1024;
 const MAX_INTROSPECTION_RESPONSE_BYTES: usize = 64 * 1024;
@@ -137,7 +137,7 @@ impl Config {
             nats_credentials_file: optional_env("HAPPY_WAKEY_NATS_CREDENTIALS_FILE")
                 .map(PathBuf::from),
             nats_request_stream: env::var("HAPPY_WAKEY_NATS_REQUEST_STREAM")
-                .unwrap_or_else(|_| "HAPPY_WAKEY_OPERATIONS".into()),
+                .unwrap_or_else(|_| "DD_WEB_API_REQUESTS".into()),
             nats_response_stream: env::var("HAPPY_WAKEY_NATS_RESPONSE_STREAM")
                 .unwrap_or_else(|_| "HAPPY_WAKEY_RESPONSES".into()),
         }
@@ -573,15 +573,17 @@ impl Runtime {
             .nats_url
             .as_deref()
             .ok_or(WebError::ApiUnavailable)?;
-        let credentials = self
-            .config
-            .nats_credentials_file
-            .as_ref()
-            .ok_or(WebError::ApiUnavailable)?;
-        let options = ConnectOptions::with_credentials_file(credentials)
-            .await
-            .map_err(|_| WebError::ApiUnavailable)?
-            .require_tls(true)
+        let mut options = if let Some(credentials) = self.config.nats_credentials_file.as_ref() {
+            ConnectOptions::with_credentials_file(credentials)
+                .await
+                .map_err(|_| WebError::ApiUnavailable)?
+        } else {
+            ConnectOptions::new()
+        };
+        if url.starts_with("tls://") {
+            options = options.require_tls(true);
+        }
+        let options = options
             .name("happy-wakey-web-server")
             .connection_timeout(Duration::from_secs(5))
             .subscription_capacity(128);
@@ -811,21 +813,38 @@ fn validate_config(config: &Config, mode: InteractionMode) -> Result<()> {
         InteractionMode::AsyncJetStream => {
             validate_api_base(&config.api_base)?;
             let url = config.nats_url.as_deref().context("NATS URL is required")?;
-            anyhow::ensure!(url.starts_with("tls://"), "NATS must use tls://");
-            let authority = url
-                .strip_prefix("tls://")
-                .unwrap_or_default()
-                .split('/')
-                .next()
-                .unwrap_or_default();
+            let in_cluster = url == "nats://dd-nats.messaging.svc.cluster.local:4222";
             anyhow::ensure!(
-                !authority.is_empty() && !authority.contains('@'),
-                "NATS credentials must come from a credentials file"
+                url.starts_with("tls://") || in_cluster,
+                "NATS must use tls:// or the in-cluster dd-nats URL"
             );
-            anyhow::ensure!(
-                config.nats_credentials_file.is_some(),
-                "NATS credentials file is required"
-            );
+            if in_cluster {
+                let authority = url
+                    .strip_prefix("nats://")
+                    .unwrap_or_default()
+                    .split('/')
+                    .next()
+                    .unwrap_or_default();
+                anyhow::ensure!(
+                    !authority.contains('@'),
+                    "NATS credentials must come from a credentials file"
+                );
+            } else {
+                let authority = url
+                    .strip_prefix("tls://")
+                    .unwrap_or_default()
+                    .split('/')
+                    .next()
+                    .unwrap_or_default();
+                anyhow::ensure!(
+                    !authority.is_empty() && !authority.contains('@'),
+                    "NATS credentials must come from a credentials file"
+                );
+                anyhow::ensure!(
+                    config.nats_credentials_file.is_some(),
+                    "NATS credentials file is required"
+                );
+            }
             anyhow::ensure!(
                 safe_topology_name(&config.nats_request_stream)
                     && safe_topology_name(&config.nats_response_stream),
