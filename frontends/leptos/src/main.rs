@@ -1,19 +1,25 @@
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
 use axum::{extract::State, http::HeaderMap, response::Html, routing::get, Router};
-use happy_wakey_web_common::{Config, Dashboard, Runtime, WebError};
+use happy_wakey_web_common::{flags, Config, Dashboard, Runtime, WebError};
 use leptos::prelude::*;
 use tower_http::trace::TraceLayer;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    if let Some(output) = flags::process_control(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
+        .map_err(std::io::Error::other)?
+    {
+        print!("{output}");
+        return Ok(());
+    }
     let runtime = Arc::new(Runtime::new(Config::from_env()?, "leptos")?);
     let app = Router::new()
         .route("/", get(home))
         .route("/healthz", get(|| async { "ok" }))
         .layer(TraceLayer::new_for_http())
         .with_state(runtime);
-    let port = env::var("HAPPY_WAKEY_LEPTOS_PORT").unwrap_or_else(|_| "8132".into());
+    let port = flags::var("HAPPY_WAKEY_LEPTOS_PORT").unwrap_or_else(|_| "8132".into());
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     axum::serve(listener, app).await?;
     Ok(())

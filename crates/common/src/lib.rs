@@ -1,12 +1,13 @@
 #![forbid(unsafe_code)]
 
 use std::{
-    env,
     io::BufReader,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
+
+pub mod flags;
 
 use anyhow::{Context, Result};
 use async_nats::{
@@ -114,17 +115,17 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> Result<Self> {
         Ok(Self {
-            interaction_mode: env::var("HAPPY_WAKEY_INTERACTION_MODE")
+            interaction_mode: flags::var("HAPPY_WAKEY_INTERACTION_MODE")
                 .unwrap_or_else(|_| "stateless_https".into()),
             api_base: required_env("HAPPY_WAKEY_API_BASE")?,
             shared_auth_base: required_env("HAPPY_WAKEY_SHARED_AUTH_BASE")?,
-            shared_auth_audience: env::var("HAPPY_WAKEY_SHARED_AUTH_AUDIENCE")
+            shared_auth_audience: flags::var("HAPPY_WAKEY_SHARED_AUTH_AUDIENCE")
                 .unwrap_or_else(|_| "happy-wakey".into()),
             introspect_secret: optional_env("HAPPY_WAKEY_SHARED_AUTH_INTROSPECT_SECRET"),
             database_url: optional_env("DATABASE_URL"),
-            database_flavor: env::var("HAPPY_WAKEY_DATABASE_FLAVOR")
+            database_flavor: flags::var("HAPPY_WAKEY_DATABASE_FLAVOR")
                 .unwrap_or_else(|_| "postgres".into()),
-            database_max_connections: env::var("HAPPY_WAKEY_DATABASE_MAX_CONNECTIONS")
+            database_max_connections: flags::var("HAPPY_WAKEY_DATABASE_MAX_CONNECTIONS")
                 .ok()
                 .and_then(|value| value.parse().ok())
                 .unwrap_or(4),
@@ -134,9 +135,9 @@ impl Config {
             nats_url: optional_env("HAPPY_WAKEY_NATS_URL"),
             nats_credentials_file: optional_env("HAPPY_WAKEY_NATS_CREDENTIALS_FILE")
                 .map(PathBuf::from),
-            nats_request_stream: env::var("HAPPY_WAKEY_NATS_REQUEST_STREAM")
+            nats_request_stream: flags::var("HAPPY_WAKEY_NATS_REQUEST_STREAM")
                 .unwrap_or_else(|_| "DD_WEB_API_REQUESTS".into()),
-            nats_response_stream: env::var("HAPPY_WAKEY_NATS_RESPONSE_STREAM")
+            nats_response_stream: flags::var("HAPPY_WAKEY_NATS_RESPONSE_STREAM")
                 .unwrap_or_else(|_| "HAPPY_WAKEY_RESPONSES".into()),
         })
     }
@@ -924,11 +925,11 @@ fn failure_status(error: &WebError) -> u16 {
 }
 
 fn required_env(name: &str) -> Result<String> {
-    env::var(name).with_context(|| format!("{name} is required"))
+    flags::var(name).with_context(|| format!("{name} is required"))
 }
 
 fn optional_env(name: &str) -> Option<String> {
-    env::var(name)
+    flags::var(name)
         .ok()
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())

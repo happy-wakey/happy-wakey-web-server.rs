@@ -1,0 +1,122 @@
+[identity]
+service = "happy-wakey-web-server"
+type_name = "RuntimeEnv"
+
+[help]
+url = "https://github.com/flags-2-env/flags-2-env"
+columns = ["options", "env", "type", "default", "description"]
+
+[parse]
+allow_unknown = false
+
+[env]
+ignore = ["DATABASE_URL", "HAPPY_WAKEY_API_TCP_CA_FILE", "HAPPY_WAKEY_NATS_CREDENTIALS_FILE", "HAPPY_WAKEY_SHARED_AUTH_INTROSPECT_SECRET"]
+
+[flags.help]
+env = "CLI_HELP_REQUESTED"
+long = "help"
+short = "h"
+type = "boolean"
+default = false
+help = "Print command-line help."
+
+[flags.version]
+env = "CLI_VERSION_REQUESTED"
+long = "version"
+short = "V"
+type = "boolean"
+default = false
+help = "Print the server version."
+
+[flags.interaction-mode]
+env = "HAPPY_WAKEY_INTERACTION_MODE"
+long = "interaction-mode"
+type = "string"
+default = "stateless_https"
+help = "Backend interaction mode."
+
+[flags.api-base]
+env = "HAPPY_WAKEY_API_BASE"
+long = "api-base"
+type = "string"
+help = "Credential-free Happy Wakey API base URL."
+
+[flags.shared-auth-base]
+env = "HAPPY_WAKEY_SHARED_AUTH_BASE"
+long = "shared-auth-base"
+type = "string"
+help = "Credential-free Shared Auth base URL."
+
+[flags.shared-auth-audience]
+env = "HAPPY_WAKEY_SHARED_AUTH_AUDIENCE"
+long = "shared-auth-audience"
+type = "string"
+default = "happy-wakey"
+help = "Expected Shared Auth audience."
+
+[flags.database-flavor]
+env = "HAPPY_WAKEY_DATABASE_FLAVOR"
+long = "database-flavor"
+type = "string"
+default = "postgres"
+help = "Read-only database engine flavor."
+
+[flags.database-max-connections]
+env = "HAPPY_WAKEY_DATABASE_MAX_CONNECTIONS"
+long = "database-max-connections"
+type = "integer"
+default = 4
+help = "Maximum read-only database connections."
+
+[flags.tcp-address]
+env = "HAPPY_WAKEY_API_TCP_ADDRESS"
+long = "tcp-address"
+type = "string"
+help = "Persistent API TLS socket address."
+
+[flags.tcp-server-name]
+env = "HAPPY_WAKEY_API_TCP_SERVER_NAME"
+long = "tcp-server-name"
+type = "string"
+help = "Expected persistent API TLS server name."
+
+[flags.nats-url]
+env = "HAPPY_WAKEY_NATS_URL"
+long = "nats-url"
+type = "string"
+help = "Credential-free TLS or exact in-cluster NATS URL."
+
+[flags.nats-request-stream]
+env = "HAPPY_WAKEY_NATS_REQUEST_STREAM"
+long = "nats-request-stream"
+type = "string"
+default = "DD_WEB_API_REQUESTS"
+help = "JetStream request stream."
+
+[flags.nats-response-stream]
+env = "HAPPY_WAKEY_NATS_RESPONSE_STREAM"
+long = "nats-response-stream"
+type = "string"
+default = "HAPPY_WAKEY_RESPONSES"
+help = "JetStream response stream."
+
+[flags.mash-port]
+env = "HAPPY_WAKEY_MASH_PORT"
+long = "mash-port"
+type = "integer"
+default = 8131
+help = "MASH frontend listener port."
+
+[flags.leptos-port]
+env = "HAPPY_WAKEY_LEPTOS_PORT"
+long = "leptos-port"
+type = "integer"
+default = 8132
+help = "Leptos frontend listener port."
+
+[flags.dioxus-port]
+env = "HAPPY_WAKEY_DIOXUS_PORT"
+long = "dioxus-port"
+type = "integer"
+default = 8133
+help = "Dioxus frontend listener port."
