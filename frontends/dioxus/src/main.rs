@@ -1,3 +1,4 @@
+mod web_api_plane;
 use std::{env, sync::Arc};
 
 use axum::{extract::State, http::HeaderMap, response::Html, routing::get, Router};
@@ -11,6 +12,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/", get(home))
         .route("/healthz", get(|| async { "ok" }))
+            .route("/v1/data-plane/capabilities", axum::routing::get(|| async { axum::Json(crate::web_api_plane::capabilities()) }))
         .layer(TraceLayer::new_for_http())
         .with_state(runtime);
     let port = env::var("HAPPY_WAKEY_DIOXUS_PORT").unwrap_or_else(|_| "8133".into());
