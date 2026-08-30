@@ -11,9 +11,12 @@ repository = "https://github.com/happy-wakey/happy-wakey-web-server.rs"
 [workspace.dependencies]
 anyhow = "1"
 axum = { version = "0.8", features = ["macros"] }
+flags2env = { version = "0.1.0", git = "https://github.com/flags-2-env/flags-2-env", rev = "d7bad9ea7dfc657653368237e08903514cdca1ec" }
 happy-wakey-web-common = { path = "crates/common" }
 http = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tempfile = "3"
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+toml = "0.8"
 tower-http = { version = "0.6", features = ["set-header", "trace"] }
