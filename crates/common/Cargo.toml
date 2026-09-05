@@ -12,9 +12,11 @@ axum.workspace = true
 bytes = "1"
 flags2env.workspace = true
 futures-util = "0.3"
-happy-wakey-interfaces = { git = "https://github.com/happy-wakey/happy-wakey-interfaces.git", rev = "d6278ec8f6b2263678728b147a32dff92d52d8c8" }
-happy-wakey-lib-core = { git = "https://github.com/happy-wakey/happy-wakey-lib-core.git", rev = "9638429097bc68b2aac280d4e3edaa92db96f85a", default-features = false, features = ["read-only"] }
+happy-wakey-interfaces = { git = "https://github.com/happy-wakey/happy-wakey-interfaces.git", rev = "35b25d5b49cfd469d633914993450c62f25b36b8" }
+happy-wakey-lib-core = { git = "https://github.com/happy-wakey/happy-wakey-lib-core.git", rev = "f6f159ab5d3d5a5d7cca9b279e7fdc7924091a21", default-features = false, features = ["read-only"] }
+happy-wakey-pub-lib-core = { git = "https://github.com/happy-wakey/happy-wakey-pub-lib-core.git", rev = "14a35640992ea2daed788e7ed5c0ef19c18b8c7b" }
 next-loggers = { package = "oresoftware-next-loggers", git = "https://github.com/ores-otel/ores.otel.log.git", rev = "ca176fb6768a9750d262a536952268625ffd3a8a" }
+ores-middleware = { git = "https://github.com/ORESoftware/ores-middleware.git", rev = "6f73bf1ae97f38f05e2e87e4eb3e0e18e0142529", default-features = false }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 rustls-pemfile = "2"
 serde.workspace = true

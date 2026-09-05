@@ -196,6 +196,9 @@ pub struct Dashboard {
     pub identity_label: String,
     pub alarms: Vec<Alarm>,
     pub preferences: Value,
+    pub interaction_mode: &'static str,
+    pub usefulness_threshold: f32,
+    pub max_cards: usize,
 }
 
 #[derive(Debug)]
@@ -249,6 +252,7 @@ impl IntoResponse for WebError {
 
 impl Runtime {
     pub fn new(config: Config, lane: &str) -> Result<Self> {
+        validate_middleware_contract()?;
         let mode = InteractionMode::parse(&config.interaction_mode)?;
         validate_config(&config, mode)?;
         let service_secret = config
@@ -294,6 +298,9 @@ impl Runtime {
             identity_label: identity.email.unwrap_or(identity.subject),
             alarms,
             preferences,
+            interaction_mode: self.mode.label(),
+            usefulness_threshold: happy_wakey_pub_lib_core::MIN_USEFULNESS_SCORE,
+            max_cards: 64,
         })
     }
 
@@ -954,6 +961,27 @@ pub fn merge_preferences(base: &str, incoming: &str) -> Result<Value, WebError> 
     serde_json::from_str(&merged).map_err(|error| WebError::Contract(error.to_string()))
 }
 
+fn validate_middleware_contract() -> Result<()> {
+    let capabilities = ores_middleware::capabilities();
+    for required in [
+        "request-context",
+        "trace-context",
+        "payload-limit",
+        "rate-limit",
+        "auth",
+        "sync-observer",
+        "tls-policy",
+        "security-headers",
+        "idempotency",
+    ] {
+        anyhow::ensure!(
+            capabilities.contains(&required),
+            "Ores Middleware is missing required capability {required}"
+        );
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -966,6 +994,12 @@ mod tests {
         )
         .unwrap();
         assert_eq!(merged, json!({"theme":"dark","nested":{"a":1,"b":2}}));
+    }
+
+    #[test]
+    fn ores_middleware_and_public_policy_are_linked() {
+        validate_middleware_contract().unwrap();
+        assert_eq!(happy_wakey_pub_lib_core::MIN_USEFULNESS_SCORE, 0.8);
     }
 
     #[test]

@@ -1255,8 +1255,8 @@ dependencies = [
 
 [[package]]
 name = "happy-wakey-interfaces"
-version = "0.1.0"
-source = "git+https://github.com/happy-wakey/happy-wakey-interfaces.git?rev=d6278ec8f6b2263678728b147a32dff92d52d8c8#d6278ec8f6b2263678728b147a32dff92d52d8c8"
+version = "0.2.0"
+source = "git+https://github.com/happy-wakey/happy-wakey-interfaces.git?rev=35b25d5b49cfd469d633914993450c62f25b36b8#35b25d5b49cfd469d633914993450c62f25b36b8"
 dependencies = [
  "schemars",
  "serde",
@@ -1278,7 +1278,7 @@ dependencies = [
 [[package]]
 name = "happy-wakey-lib-core"
 version = "0.1.0"
-source = "git+https://github.com/happy-wakey/happy-wakey-lib-core.git?rev=9638429097bc68b2aac280d4e3edaa92db96f85a#9638429097bc68b2aac280d4e3edaa92db96f85a"
+source = "git+https://github.com/happy-wakey/happy-wakey-lib-core.git?rev=f6f159ab5d3d5a5d7cca9b279e7fdc7924091a21#f6f159ab5d3d5a5d7cca9b279e7fdc7924091a21"
 dependencies = [
  "chrono",
  "happy-wakey-interfaces",
@@ -1299,6 +1299,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "happy-wakey-pub-lib-core"
+version = "0.1.0"
+source = "git+https://github.com/happy-wakey/happy-wakey-pub-lib-core.git?rev=14a35640992ea2daed788e7ed5c0ef19c18b8c7b#14a35640992ea2daed788e7ed5c0ef19c18b8c7b"
+dependencies = [
+ "happy-wakey-interfaces",
+ "time",
+ "url",
+]
+
+[[package]]
 name = "happy-wakey-web-common"
 version = "0.1.0"
 dependencies = [
@@ -1310,7 +1320,9 @@ dependencies = [
  "futures-util",
  "happy-wakey-interfaces",
  "happy-wakey-lib-core",
- "oresoftware-next-loggers",
+ "happy-wakey-pub-lib-core",
+ "ores-middleware",
+ "oresoftware-next-loggers 0.1.0 (git+https://github.com/ores-otel/ores.otel.log.git?rev=ca176fb6768a9750d262a536952268625ffd3a8a)",
  "reqwest",
  "rustls-pemfile",
  "serde",
@@ -2123,6 +2135,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7bb71e1b3fa6ca1c61f383464aaf2bb0e2f8e772a1f01d486832464de363b951"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "ores-middleware"
+version = "0.1.0"
+source = "git+https://github.com/ORESoftware/ores-middleware.git?rev=6f73bf1ae97f38f05e2e87e4eb3e0e18e0142529#6f73bf1ae97f38f05e2e87e4eb3e0e18e0142529"
+dependencies = [
+ "futures-util",
+ "hmac",
+ "http",
+ "oresoftware-next-loggers 0.1.0 (git+https://github.com/ores-otel/ores.otel.log.git?rev=b55271c047be761c4711d87cbd500a49eefda3d9)",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "oresoftware-next-loggers"
+version = "0.1.0"
+source = "git+https://github.com/ores-otel/ores.otel.log.git?rev=b55271c047be761c4711d87cbd500a49eefda3d9#b55271c047be761c4711d87cbd500a49eefda3d9"
+dependencies = [
+ "serde",
+ "serde_json",
+ "time",
 ]
 
 [[package]]
@@ -3966,6 +4005,7 @@ checksum = "f053576934f05a761a402421fbbe3d425d9366f75f978806a037b3ca481abecc"
 dependencies = [
  "getrandom 0.4.3",
  "js-sys",
+ "serde_core",
  "wasm-bindgen",
 ]
 

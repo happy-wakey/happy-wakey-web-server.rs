@@ -1,5 +1,7 @@
 /target/
 **/target/
+tmp/
+temp/
 *.log
 .DS_Store
 
@@ -13,4 +15,3 @@ env/dec
 env/dec/
 /env/dec/
 # END ores-sops dotenv policy
-
